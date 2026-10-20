@@ -12,6 +12,8 @@
 ```
 __constructor(allowed_tokens: Vec<Address>)    // immutable token allowlist; empty means allow all
 create_escrow(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee) -> escrow_id   // IMPLEMENTED + DEPLOYED ON TESTNET; optional Phase E5 callback
+create_escrow_with_acceptance(..., requires_acceptance) -> escrow_id   // IMPLEMENTED + DEPLOYED ON TESTNET; optional payee acceptance gate
+accept(escrow_id, payee) -> ()   // IMPLEMENTED + DEPLOYED ON TESTNET; payee-authorized, one-time acceptance before release
 create_escrow_with_releasers(payer, payee, token, amount, condition_ref, releasers, threshold, refund_after, notify_payee) -> escrow_id // IMPLEMENTED (Phase E5, issue #119, ADR 0007) — M-of-N, 1..=10 releasers, 1 <= threshold <= len
 get_status(escrow_id) -> EscrowStatus  // enum: Funded | Released | Refunded — IMPLEMENTED + LIVE ON TESTNET (Phase E1)
 get_escrow(escrow_id) -> EscrowData    // read-only: payer, payee, token, amount, condition_ref, status, releasers, threshold, refund_after — IMPLEMENTED (Phase E4 + E5; `releaser` became `releasers`+`threshold` in #119)
@@ -30,8 +32,8 @@ pausable/upgradeable/access modules were evaluated and rejected in
 The allowlist is fixed when the contract is deployed. `create_escrow`
 rejects any token outside a non-empty list with `DisallowedToken` (error
 code 8); an empty list preserves the prior open-token behavior. The
-2026-10-20 deployment includes this constructor with testnet native XLM
-and the verification test token allowlisted; see
+current upstream-main deployment includes this constructor with testnet
+native XLM and the verification test token allowlisted; see
 `docs/testnet-deployments.md`.
 
 `create_escrow`'s param order in code is `(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee)`.
@@ -41,18 +43,13 @@ The quorum creation entry point has the same final callback flag. The SDK
 option defaults to false. Callback failure rolls release back atomically;
 see ADR 0005 for failure, gas, and stored-record compatibility.
 
-The current contract surface (`create_escrow`, `get_status`, `get_escrow`,
-`release`, `refund`, quorum methods, and optional release callback) is
-deployed and verified live on testnet (`docs/testnet-deployments.md`,
-2026-10-20 entry), including real `BalanceMismatch` rejection, timeout
-refund by a non-releaser after its deadline, a
-real `release` after the deadline, and real rejections of a
-pre-deadline stranger refund (`Error(Contract, #3)`), a deadline already
-in the past at creation (`Error(Contract, #5)`), and a second refund on
-an already-settled escrow (`Error(Contract, #4)`). The Phase E1 and E2
-deployments are superseded (their contract IDs predate the
-`refund_after` param and `EscrowData` layout) and are kept only as
-historical record.
+The current contract surface (`create_escrow`, `create_escrow_with_acceptance`,
+`accept`, `get_status`, `get_escrow`, `release`, `refund`, quorum methods,
+and optional release callback) is deployed and verified live on testnet
+(`docs/testnet-deployments.md`, 2026-10-20 entry), including real
+`BalanceMismatch` rejection, timeout refund by a non-releaser after its
+deadline, release after the deadline, and rejections of unauthorized,
+expired-deadline, and already-settled operations.
 
 `refund_after` is an optional unix timestamp in seconds set once at
 creation (`docs/adr/0004`): after it passes **anyone** may call

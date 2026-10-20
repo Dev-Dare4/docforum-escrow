@@ -1,6 +1,56 @@
 # Testnet deployments
 
-## `docforum_escrow` — 2026-10-20 (current main, security fix + Phase E5 surface)
+## `docforum_escrow` — 2026-10-20 (upstream main at `01fb243`, issue #109)
+
+| | |
+|---|---|
+| Network | Stellar Testnet (`Test SDF Network ; September 2015`) |
+| Contract ID | `CBJNXW726ALRGQEWERZ6UEVWICRLB36HAVP6WQPFXTDB4N67BXMYSK7P` |
+| Explorer | https://stellar.expert/explorer/testnet/contract/CBJNXW726ALRGQEWERZ6UEVWICRLB36HAVP6WQPFXTDB4N67BXMYSK7P |
+| WASM hash | `e8685a53143cf276f7b0519b6e768a162860d7d8212c26e626679d7abac48adc` |
+| WASM upload tx | https://stellar.expert/explorer/testnet/tx/44e1935336cecbafebd0aa9a5208ce1dc1344094360c3ec1bb1a9e9b66f8e1e2 |
+| Deploy tx | https://stellar.expert/explorer/testnet/tx/47db5beefc7d4cb3699a99b8eb63b7543e4d6e6ae3b5b6e3788d6c82ee5d05af |
+| Source commit | `01fb243` (upstream main, including payee acceptance) |
+
+This supersedes the pre-acceptance 2026-10-20 deployment immediately
+below and the 2026-10-08 deployment. The constructor allowlist contains
+the testnet native XLM SAC
+`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` and the test
+token below. The latest `EscrowData` layout includes opt-in payee
+acceptance. Prior records are retained as history.
+
+### BalanceMismatch test token
+
+The test-only token was configured to charge a 10% transfer fee after
+simulation. The latest contract rejected the funded-escrow attempt on
+chain with `BalanceMismatch` (error code 6):
+[failed transaction](https://stellar.expert/explorer/testnet/tx/120d0f3a1829f98a2f48a733f0ac65f4f42fea7826823c4ff26154ca4586b75d).
+The fee was enabled in
+[this transaction](https://stellar.expert/explorer/testnet/tx/241cb4a1573b82b31933f4f66d6a7480a1890fe3bab46dcca05b33eabeb28217).
+The token contract and WASM deployment details are recorded in the
+following 2026-10-20 deployment history entry.
+
+### Live lifecycle verification
+
+All entries are real testnet transactions against the contract above.
+
+- Create escrow 0 (1,000,000 stroops):
+  [transaction](https://stellar.expert/explorer/testnet/tx/a93dd2d4fcb8c74f342ea44f63402e1cc2a8ca79b90429dc0bf6d450f944f237).
+- Release escrow 0:
+  [transaction](https://stellar.expert/explorer/testnet/tx/2992f61981e7f986b3fcbc88767b3e6388ad207b81a3f0336ca642fad730d0e9);
+  `get_status(0)` returned `Released`.
+- Create escrow 1:
+  [transaction](https://stellar.expert/explorer/testnet/tx/1d64163db44c8349d97156cd27f0848cd8feeb77dd1d6fc699b5f3f385b64d0c).
+- Refund escrow 1:
+  [transaction](https://stellar.expert/explorer/testnet/tx/79df0d2418f340e6b85b6e5ce9eaedbe237e51441bd6a10e774c87623fdecc04);
+  `get_status(1)` returned `Refunded`.
+- Create timeout escrow 2 with `refund_after` = `1792501856`:
+  [transaction](https://stellar.expert/explorer/testnet/tx/5524d72aa1c491a466d6ae0f06f4189ec0d98b56975434e07c578574e49dd61b).
+- Stranger timeout-refund escrow 2 after its deadline:
+  [transaction](https://stellar.expert/explorer/testnet/tx/e7f133ecae859604cb34b8a8a9ad651f23a76e282f9d36255b696566e81ce7f7);
+  `get_status(2)` returned `Refunded`.
+
+## `docforum_escrow` — 2026-10-20 (pre-acceptance deployment, source `42d9d4e`)
 
 | | |
 |---|---|

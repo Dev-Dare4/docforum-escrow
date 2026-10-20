@@ -3,8 +3,14 @@
 > Update this file on every contribution that starts/completes/blocks an
 > item below.
 
-**Status: Phase E1 done. Phase E2 done and live on testnet. Phase E3's `create_escrow`/`get_status`/`release`/`refund` wrapping done; SDK distribution decided (issue #5 closed — GitHub Release tarball, ADR 0003). Phase E4 (security review, issue #6) in progress: threat model drafted (`docs/threat-model.md`) and the timeout-refund item closed (issue #11 — ADR 0004 + implementation, live on testnet); independent review not yet done — blocking for any mainnet use. Phase E5 (bound condition_ref length) started — see below; redeployed to testnet on 2026-10-20.**
-**Status: Phase E1 done. Phase E2 done and live on testnet. Phase E3's `create_escrow`/`get_status`/`release`/`refund` wrapping done; SDK distribution decided (issue #5 closed — GitHub Release tarball, ADR 0003). Phase E4 (security review, issue #6) in progress: threat model drafted (`docs/threat-model.md`) and the timeout-refund item closed (issue #11 — ADR 0004 + implementation, live on testnet); independent review not yet done — blocking for any mainnet use. Phase E5 (contract features) now includes the OZ-library evaluation (ADR 0006, no library adopted) and the optional in-contract M-of-N releaser quorum (ADR 0007, SDK 0.5.0) — implemented, tested, and deployed to testnet on 2026-10-20. Phase E6 (npm publishing) in progress: automated `sdk-v*` release workflow with provenance, changesets, and a superseding ADR landed; the current SDK 0.5.0 tarball and notification to docforum-core #32 are still pending authenticated release access. Phase E7 (verification/release engineering) started: committed Soroban test snapshots with a CI drift check (issue #120) and a CI check that generated SDK bindings match the contract WASM (issue #121).**
+**Status: Phase E1 and E2 are complete and live on testnet. Phase E3 SDK bindings and API are implemented; current SDK is strict-semver 0.5.0. Phase E4 timeout refund and balance-delta security fix are live on testnet; the independent security review remains open and blocks mainnet. Phase E5 contract features (condition-ref bound, quorum, allowlist, callbacks, and opt-in payee acceptance) are implemented, tested, and deployed to testnet as of 2026-10-20. Phase E6 publication of SDK 0.5.0 and notification to docforum-core #32 remain pending authenticated release access. Phase E7 verification and release automation work continues.**
+
+## Payee acceptance (issue #25)
+
+An opt-in creation method can require the payee to authorize `accept` before release. Existing escrows keep the default behavior, and refunds remain available without acceptance. Acceptance is recorded in the escrow data.
+
+- [x] Implemented with contract tests and deployed on testnet 2026-10-20;
+  verified source includes upstream main commit `01fb243`.
 
 ## Phase E1 — Contract skeleton
 - [x] Soroban project scaffold (`contracts/escrow`), builds to wasm
@@ -203,6 +209,14 @@
 
 ## Phase E7 — Verification, testing & release engineering
 - [x] **PR malware scan** — `.github/workflows/pr-malware-scan.yml` + `.github/scripts/pr-malware-scan.cjs`, on every PR push. Flags editor/devcontainer autorun tasks, npm install hooks, typosquatted packages and Actions, non-registry dependency sources, payloads disguised as fonts/images, base64/whitespace obfuscation, exfiltration endpoints, reverse shells and miners. HIGH findings fail the `Malware scan` check, label the PR `security-review` and @mention the author; one comment per PR, updated in place. Reads the PR as data only (never checks out or runs it). Added 2026-10-20 after a VS Code autorun payload (escrow #163) and a typosquatted action (escrow #176). Manual backfill (Actions → PR malware scan → Run workflow, `prs: all`) scans PRs opened before the scanner and records a `Malware scan` commit status, which satisfies the required check.
+- [x] **Nightly testnet escrow lifecycle soak** (issue #108) —
+  `.github/workflows/nightly-testnet-soak.yml` runs the SDK live integration
+  suite nightly with generated identities, transient Friendbot retries,
+  release/refund paths, and a short timeout refund. Quorum coverage remains
+  skipped until the documented testnet contract supports it. Failures
+  update one tracking issue in place and classify contract-missing resets,
+  infrastructure failures, and SDK test failures. Manual dispatch includes
+  a forced-failure reporting check.
 - [x] **Commit Soroban test snapshots, review event/storage diffs in PRs**
   (issue #120) — `test_snapshots/` is no longer git-ignored; every
   `cargo test` writes one snapshot per test (events, auth, ledger/storage)
@@ -240,6 +254,10 @@
   integration test's known testnet contract ID. SDK release publication
   and notification to `docforum-core` #32 remain pending authenticated
   release access; current SDK version is 0.5.0, not the requested stale 0.3.x.
+- 2026-10-20 — Added the Phase E7 nightly testnet soak workflow for issue
+  #108, with transient Friendbot retries, fresh test identities, timeout
+  refund coverage, failure classification, de-duplicated issue reporting,
+  and a manual forced-failure path.
 - 2026-10-19 — Required payee authorization when `notify_payee` is enabled,
   and extended the callback to quorum escrows after #203 introduced M-of-N
   releasers. Updated ADR 0005, T11, API docs and generated bindings.
