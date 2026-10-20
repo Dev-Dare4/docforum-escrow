@@ -206,6 +206,10 @@ An opt-in creation method can require the payee to authorize `accept` before rel
   main is strict-semver `0.5.0`, and `0.3.0` must not be reused.
   Publication requires authenticated release access and npm trusted
   publisher setup; neither was available for this local contribution.
+- [x] Fee estimation and fee-bump sponsorship helpers (issue #70), shipped
+  in SDK 0.5.0. Estimation reports buffered resource fees and inclusion
+  fees; sponsorship helpers enforce a maximum fee and validate targets.
+  Offline unit tests and a live testnet integration case cover the surface.
 
 ## Phase E7 — Verification, testing & release engineering
 - [x] **PR malware scan** — `.github/workflows/pr-malware-scan.yml` + `.github/scripts/pr-malware-scan.cjs`, on every PR push. Flags editor/devcontainer autorun tasks, npm install hooks, typosquatted packages and Actions, non-registry dependency sources, payloads disguised as fonts/images, base64/whitespace obfuscation, exfiltration endpoints, reverse shells and miners. HIGH findings fail the `Malware scan` check, label the PR `security-review` and @mention the author; one comment per PR, updated in place. Reads the PR as data only (never checks out or runs it). Added 2026-10-20 after a VS Code autorun payload (escrow #163) and a typosquatted action (escrow #176). Manual backfill (Actions → PR malware scan → Run workflow, `prs: all`) scans PRs opened before the scanner and records a `Malware scan` commit status, which satisfies the required check.
@@ -247,6 +251,9 @@ An opt-in creation method can require the payee to authorize `accept` before rel
   repo's.
 
 ## Changelog
+- 2026-10-19 — Added SDK fee estimation and fee-bump sponsorship helpers
+  (issue #70), covered by offline unit tests and live testnet integration;
+  shipped in SDK 0.5.0.
 - 2026-10-20 — Redeployed current main to Stellar testnet and verified
   create, release, refund, timeout refund, and a real `BalanceMismatch`
   rejection with a fee-on-transfer test token. Recorded contract and
