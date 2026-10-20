@@ -5,7 +5,7 @@
 ![Stack](https://img.shields.io/badge/contract-Rust%20%2F%20Soroban-orange.svg)
 ![Network](https://img.shields.io/badge/network-testnet%20only-important.svg)
 
-**🔗 Live on testnet:** [`CBJNXW726ALRGQEWERZ6UEVWICRLB36HAVP6WQPFXTDB4N67BXMYSK7P`](https://stellar.expert/explorer/testnet/contract/CBJNXW726ALRGQEWERZ6UEVWICRLB36HAVP6WQPFXTDB4N67BXMYSK7P) — current upstream-main deployment, verified with real create, release, refund, timeout refund, and BalanceMismatch transactions. History and details: [`docs/testnet-deployments.md`](docs/testnet-deployments.md).
+**🔗 Live on testnet:** [`CAFI5QOTNLK5OIHEHGGQ7B22RN5IUOFGKKEID2OQCZSCJAQS4FLSS2DR`](https://stellar.expert/explorer/testnet/contract/CAFI5QOTNLK5OIHEHGGQ7B22RN5IUOFGKKEID2OQCZSCJAQS4FLSS2DR) — current upstream main deployment, including sponsored refunds (`refund_to`), verified with real create, release, refund, timeout refund, and `BalanceMismatch` calls. History and details: [`docs/testnet-deployments.md`](docs/testnet-deployments.md).
 
 A [Soroban](https://developers.stellar.org/docs/build/smart-contracts) (Stellar) smart contract for conditional payment escrow — lock funds, and release them to the payee only when release is authorized, or return them to the payer on refund. Paired with a TypeScript client SDK, `@docforum/escrow-sdk`.
 
@@ -46,15 +46,15 @@ deployment, so choosing an empty list deliberately disables the protection.
 | Function | Status | Description |
 |---|---|---|
 | `__constructor(allowed_tokens)` | ✅ Implemented | Stores the immutable deploy-time token allowlist; an empty list allows all tokens. |
-| `create_escrow(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee) -> escrow_id` | ✅ Implemented and deployed to testnet | Pulls funds from `payer`, stores a bounded `condition_ref`, and stores the single `releaser` as a one-address set with threshold 1. Requires payer auth; when `notify_payee` is true, also requires payee auth and calls `on_escrow_released` on release. |
-| `create_escrow_with_acceptance(..., requires_acceptance) -> escrow_id` | ✅ Implemented and deployed to testnet | Optional payee acceptance gate. When enabled, the payee must call `accept(escrow_id, payee)` before a releaser can release; refunds remain available. |
+| `create_escrow(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee, refund_to) -> escrow_id` | ✅ Implemented and deployed to testnet | Pulls funds from `payer`, stores a bounded `condition_ref`, and stores the single `releaser` as a one-address set with threshold 1. Optional `refund_to` (default: `payer`) fixes where every refund goes, set once under the funder's signature; it may not be the contract itself ([ADR 0009](docs/adr/0009-sponsored-funding-refund-to.md)). Requires payer auth; when `notify_payee` is true, also requires payee auth and calls `on_escrow_released` on release. |
+| `create_escrow_with_acceptance(..., requires_acceptance, refund_to) -> escrow_id` | ✅ Implemented and deployed to testnet | Optional payee acceptance gate. When enabled, the payee must call `accept(escrow_id, payee)` before a releaser can release; refunds remain available. |
 | `accept(escrow_id, payee)` | ✅ Implemented and deployed to testnet | Payee-authorized, one-time acceptance for a funded escrow configured with the acceptance gate. |
-| `create_escrow_with_releasers(payer, payee, token, amount, condition_ref, releasers, threshold, refund_after, notify_payee) -> escrow_id` | ✅ Implemented | Same, but settles by M-of-N: 1–10 distinct `releasers` (`MAX_RELEASERS`), `1 <= threshold <= releasers.len()`. Callback opt-in has the same payee-authorization requirement. See [ADR 0007](docs/adr/0007-in-contract-m-of-n-releaser-quorum.md). |
+| `create_escrow_with_releasers(payer, payee, token, amount, condition_ref, releasers, threshold, refund_after, notify_payee, refund_to) -> escrow_id` | ✅ Implemented and deployed to testnet | Same, but settles by M-of-N: 1–10 distinct `releasers` (`MAX_RELEASERS`), `1 <= threshold <= releasers.len()`. Callback opt-in has the same payee-authorization requirement. See [ADR 0007](docs/adr/0007-in-contract-m-of-n-releaser-quorum.md). |
 | `get_status(escrow_id) -> EscrowStatus` | ✅ Implemented | Read-only. Errors on an unknown id. |
-| `get_escrow(escrow_id) -> EscrowData` | ✅ Implemented | Read-only: everything stored about the escrow, including `releasers`, `threshold` and `refund_after`, so payees can check the deal before relying on it. |
+| `get_escrow(escrow_id) -> EscrowData` | ✅ Implemented | Read-only: everything stored about the escrow, including `releasers`, `threshold`, `refund_after` and `refund_to`, so payees can check the deal before relying on it. |
 | `release(escrow_id, caller) -> Result<()>` | ✅ Implemented | Restricted to the escrow's designated `releaser` when the threshold is 1; moves funds to `payee`. Never gated by `refund_after`. |
 | `release_with_approvals(escrow_id, approvers) -> Result<()>` | ✅ Implemented | M-of-N release: at least `threshold` distinct releasers, each authorizing this exact invocation. Approvals are not stored, so nothing can be replayed. Only while `Funded`. |
-| `refund(escrow_id, caller) -> Result<()>` | ✅ Implemented | Returns funds to `payer`. The `releaser` may always call it (threshold 1); once `refund_after` has passed, anyone may — still only back to `payer` (see [ADR 0004](docs/adr/0004-timeout-refund-path.md)). |
+| `refund(escrow_id, caller) -> Result<()>` | ✅ Implemented | Returns funds to the escrow's `refund_to` (the `payer` unless set otherwise at creation). The `releaser` may always call it (threshold 1); once `refund_after` has passed, anyone may — still only to `refund_to` (see [ADR 0004](docs/adr/0004-timeout-refund-path.md)). |
 | `refund_with_approvals(escrow_id, approvers) -> Result<()>` | ✅ Implemented | M-of-N refund with the same approval rules; the timeout path above needs no approvals. |
 | `top_up(escrow_id, payer, amount) -> Result<()>` | ✅ Implemented | Adds funds to a `Funded` escrow; original payer only. Emits a `top_up` event. |
 
@@ -68,6 +68,16 @@ That's the answer to "what if the releaser's key is lost?" (threat model
 T2): instead of locking funds permanently, a deadline lets anyone return
 them to the payer. See [ADR 0004](docs/adr/0004-timeout-refund-path.md)
 for the decision and what it means for payees.
+
+`refund_to` is optional and exists for sponsored funding: a sponsor,
+employer or grant programme (the `payer`) funds an escrow but refunds
+should go to someone else — or, by default, back to the sponsor. It is
+set once at creation under the funder's own signature, applies to every
+refund path (releaser and timeout), and can never be changed or chosen at
+payout, so the "destinations are fixed at creation" invariant (I1) holds.
+Omit it and behaviour is exactly as before. Make sure the destination
+can hold the token: if the transfer to it fails, so does the refund. See
+[ADR 0009](docs/adr/0009-sponsored-funding-refund-to.md).
 
 Single-releaser escrows are unchanged by the M-of-N option: `create_escrow`
 stores the one address with `threshold = 1`, `release`/`refund` behave exactly
@@ -232,16 +242,16 @@ const { xdr, fee } = client.feeBump(signedXdr, sponsor, { maxFee: 10_000n });
 
 ## Project status
 
-**Phase E1 (contract skeleton): done.** `create_escrow` and `get_status`
-are implemented, tested, and deployed live on testnet — not just locally
-tested. Phases E2 (release/refund), E3 (TypeScript SDK), and E4 (security
-review, blocking for any mainnet use) are tracked as open issues. Phase E5
-now also includes an optional in-contract M-of-N releaser quorum
+**Phases E1–E3: implemented.** The current contract and SDK surface are
+tested, and the latest contract is deployed live on testnet. Phase E4's
+balance-delta protection and timeout refunds are live; the independent
+security review remains open and blocks mainnet use. Phase E5 includes an
+optional in-contract M-of-N releaser quorum
 ([ADR 0007](docs/adr/0007-in-contract-m-of-n-releaser-quorum.md)) and a
 documented decision **not** to adopt OpenZeppelin's pause/upgradeable/access
 modules ([ADR 0006](docs/adr/0006-openzeppelin-stellar-library-evaluation.md));
-both are implemented, tested, and live on the current testnet deployment
-(see [`docs/testnet-deployments.md`](docs/testnet-deployments.md)). Phase E7 adds
+these and sponsored refund destinations are implemented, tested, and deployed to testnet (see
+[`docs/testnet-deployments.md`](docs/testnet-deployments.md)). Phase E7 adds
 committed contract test snapshots (issue #120) and a CI check that the
 generated SDK bindings match the contract WASM (issue #121):
 

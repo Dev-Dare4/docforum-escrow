@@ -30,7 +30,7 @@ import { EscrowClient } from "../src/index.js";
 // Current upstream-main testnet deployment, including BalanceMismatch
 // and opt-in payee acceptance — see docs/testnet-deployments.md.
 // Public contract addresses, not secrets.
-const CONTRACT_ID = "CBJNXW726ALRGQEWERZ6UEVWICRLB36HAVP6WQPFXTDB4N67BXMYSK7P";
+const CONTRACT_ID = "CAFI5QOTNLK5OIHEHGGQ7B22RN5IUOFGKKEID2OQCZSCJAQS4FLSS2DR";
 const NATIVE_XLM_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 async function fundedKeypair(): Promise<Keypair> {

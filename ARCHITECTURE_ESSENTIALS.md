@@ -11,15 +11,15 @@
 ## Contract surface
 ```
 __constructor(allowed_tokens: Vec<Address>)    // immutable token allowlist; empty means allow all
-create_escrow(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee) -> escrow_id   // IMPLEMENTED + DEPLOYED ON TESTNET; optional Phase E5 callback
-create_escrow_with_acceptance(..., requires_acceptance) -> escrow_id   // IMPLEMENTED + DEPLOYED ON TESTNET; optional payee acceptance gate
-accept(escrow_id, payee) -> ()   // IMPLEMENTED + DEPLOYED ON TESTNET; payee-authorized, one-time acceptance before release
-create_escrow_with_releasers(payer, payee, token, amount, condition_ref, releasers, threshold, refund_after, notify_payee) -> escrow_id // IMPLEMENTED (Phase E5, issue #119, ADR 0007) — M-of-N, 1..=10 releasers, 1 <= threshold <= len
+create_escrow(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee, refund_to) -> escrow_id   // Phase E5 callback + sponsored refund destination (ADR 0009); deployed on testnet
+create_escrow_with_acceptance(..., requires_acceptance, refund_to) -> escrow_id   // optional payee acceptance gate; deployed on testnet
+accept(escrow_id, payee) -> ()   // payee-authorized, one-time acceptance before release; deployed on testnet
+create_escrow_with_releasers(payer, payee, token, amount, condition_ref, releasers, threshold, refund_after, notify_payee, refund_to) -> escrow_id // IMPLEMENTED (Phase E5, issue #119, ADR 0007) — M-of-N, deployed on testnet
 get_status(escrow_id) -> EscrowStatus  // enum: Funded | Released | Refunded — IMPLEMENTED + LIVE ON TESTNET (Phase E1)
-get_escrow(escrow_id) -> EscrowData    // read-only: payer, payee, token, amount, condition_ref, status, releasers, threshold, refund_after — IMPLEMENTED (Phase E4 + E5; `releaser` became `releasers`+`threshold` in #119)
+get_escrow(escrow_id) -> EscrowData    // read-only: payer, payee, token, amount, condition_ref, status, releasers, threshold, refund_after, refund_to — IMPLEMENTED (Phase E4 + E5; `releaser` became `releasers`+`threshold` in #119)
 release(escrow_id, caller) -> result   // IMPLEMENTED (Phase E2) — a releaser, threshold must be 1, only while Funded
 release_with_approvals(escrow_id, approvers) -> result   // IMPLEMENTED (Phase E5, issue #119, ADR 0007) — >= threshold distinct releasers, each authorizing this invocation
-refund(escrow_id, caller) -> result    // IMPLEMENTED (Phase E2 + E4) — a releaser when threshold is 1; anyone too, once refund_after has passed, and then still only back to payer
+refund(escrow_id, caller) -> result    // IMPLEMENTED (Phase E2 + E4) — a releaser when threshold is 1; anyone too, once refund_after has passed, and then still only to the stored `refund_to` (= payer unless set at creation, ADR 0009)
 refund_with_approvals(escrow_id, approvers) -> result    // IMPLEMENTED (Phase E5, issue #119) — same approval rules as release_with_approvals
 top_up(escrow_id, payer, amount) -> result // IMPLEMENTED (issue #26) — original payer only, funded state only; emits `top_up`
 ```
@@ -31,39 +31,51 @@ pausable/upgradeable/access modules were evaluated and rejected in
 `docs/adr/0006` precisely because they would add one.
 The allowlist is fixed when the contract is deployed. `create_escrow`
 rejects any token outside a non-empty list with `DisallowedToken` (error
-code 8); an empty list preserves the prior open-token behavior. The
-current upstream-main deployment includes this constructor with testnet
-native XLM and the verification test token allowlisted; see
-`docs/testnet-deployments.md`.
+code 8); an empty list preserves the prior open-token behavior. The current
+testnet deployment includes the native XLM SAC and the BalanceMismatch test
+token in its allowlist; see `docs/testnet-deployments.md`.
 
-`create_escrow`'s param order in code is `(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee)`.
+`create_escrow`'s param order in code is `(payer, payee, token, amount, condition_ref, releaser, refund_after, notify_payee, refund_to)`.
 `notify_payee` opts a contract payee into `on_escrow_released(escrow_id,
 amount)`; when true, the payee must authorize creation as well as the payer.
 The quorum creation entry point has the same final callback flag. The SDK
 option defaults to false. Callback failure rolls release back atomically;
 see ADR 0005 for failure, gas, and stored-record compatibility.
 
-The current contract surface (`create_escrow`, `create_escrow_with_acceptance`,
-`accept`, `get_status`, `get_escrow`, `release`, `refund`, quorum methods,
-and optional release callback) is deployed and verified live on testnet
-(`docs/testnet-deployments.md`, 2026-10-20 entry), including real
-`BalanceMismatch` rejection, timeout refund by a non-releaser after its
-deadline, release after the deadline, and rejections of unauthorized,
-expired-deadline, and already-settled operations.
+The current contract surface (`create_escrow`, `get_status`, `get_escrow`,
+`release`, `refund`, payee acceptance, M-of-N quorum, callbacks, and
+sponsored refund destinations) is deployed on testnet as of 2026-10-20
+(`docs/testnet-deployments.md`, latest entry) — including
+a real timeout refund triggered by a non-releaser after its deadline, a
+real `release` after the deadline, and real rejections of a
+pre-deadline stranger refund (`Error(Contract, #3)`), a deadline already
+in the past at creation (`Error(Contract, #5)`), and a second refund on
+an already-settled escrow (`Error(Contract, #4)`). The Phase E1 and E2
+deployments are superseded (their contract IDs predate the
+`refund_after` param and `EscrowData` layout) and are kept only as
+historical record.
 
 `refund_after` is an optional unix timestamp in seconds set once at
 creation (`docs/adr/0004`): after it passes **anyone** may call
-`refund`, but the destination is unchanged — always the stored `payer` —
+`refund`, but the destination is unchanged — always the stored `refund_to`
+(`payer` unless a different destination was fixed at creation) —
 and `release` is never gated by it, so the releaser can still release
 after the deadline (whoever lands first wins). No `refund_after` means
 behaviour is exactly what it was before: releaser-only refunds, forever.
+
+`refund_to` (Phase E5, `docs/adr/0009`) is an optional address, set at
+creation under the funder's (`payer`'s) auth, that every refund path pays
+instead of `payer`. It is stored, immutable, never supplied at payout, and
+may not be the contract itself (`InvalidRefundTo`); omitted, it equals
+`payer` and behaviour is exactly as before. Invariant I1 is therefore
+"release → stored `payee`, refund → stored `refund_to`".
 
 ## TypeScript SDK surface (`sdk/`)
 ```ts
 import { EscrowClient, Keypair } from "@docforum/escrow-sdk";
 
 const client = new EscrowClient({ contractId }); // defaults: testnet RPC + passphrase
-const { escrowId, txHash } = await client.createEscrow({ payer, payee, token, amount, conditionRef, releaser, refundAfter, notifyPayee: true });
+const { escrowId, txHash } = await client.createEscrow({ payer, payee, token, amount, conditionRef, releaser, refundAfter, notifyPayee: true, refundTo });
 await client.createQuorumEscrow({ payer, payee, token, amount, conditionRef, releasers, threshold, refundAfter, notifyPayee: true }); // M-of-N, ADR 0007
 await client.getStatus(escrowId);            // "Funded" | "Released" | "Refunded"
 await client.getEscrow(escrowId);            // full stored record — incl. releasers + threshold + refundAfter, so a payee can check the deal (docs/adr/0004/0007, threat model T8)
@@ -77,6 +89,9 @@ await client.estimate({ source, method, args }); // { resourceFee, inclusionFee,
 client.guardSponsorship(signedXdr);          // { ok, reasons, invokedContracts } — every op + contract auth entry must target this escrow
 client.feeBump(signedXdr, sponsor, { maxFee, baseFee? }); // { xdr, fee, innerTxHash } — throws MaxFeeExceededError, never overshoots the cap
 ```
+`refundTo` on `createEscrow` is optional too (default: the payer) and
+`getEscrow` returns it as `refundTo`.
+
 `estimate` never signs or submits; it simulates against the client's RPC
 and reports stroops. `guardSponsorship` is the pre-sponsorship check for
 transactions that come from someone else: it rejects foreign contract
