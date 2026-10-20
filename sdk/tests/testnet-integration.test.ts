@@ -18,10 +18,10 @@ import { describe, expect, it } from "vitest";
 import { Keypair } from "@stellar/stellar-sdk";
 import { EscrowClient } from "../src/index.js";
 
-// Live testnet deployment of the Phase E4 contract (adds `refund_after`
-// timeout refund + `get_escrow`) — see docs/testnet-deployments.md.
+// Current-main testnet deployment, including BalanceMismatch and the
+// Phase E5 contract surface — see docs/testnet-deployments.md.
 // Public contract addresses, not secrets.
-const CONTRACT_ID = "CAHQ4J3T23WSIBBG6SI6EAYR5Q2HIPKG5YMC4SMZBOTYA6MYK2VADEV5";
+const CONTRACT_ID = "CBTVRRDDT66D4PIVX5OKQVHXEHZ736IQK6CQGLIZ5B77EXLC4F6L4OD2";
 const NATIVE_XLM_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 async function fundedKeypair(): Promise<Keypair> {

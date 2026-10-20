@@ -3,8 +3,8 @@
 > Update this file on every contribution that starts/completes/blocks an
 > item below.
 
-**Status: Phase E1 done. Phase E2 done and live on testnet. Phase E3's `create_escrow`/`get_status`/`release`/`refund` wrapping done; SDK distribution decided (issue #5 closed — GitHub Release tarball, ADR 0003). Phase E4 (security review, issue #6) in progress: threat model drafted (`docs/threat-model.md`) and the timeout-refund item closed (issue #11 — ADR 0004 + implementation, live on testnet); independent review not yet done — blocking for any mainnet use. Phase E5 (bound condition_ref length) started — see below; not yet redeployed to testnet.**
-**Status: Phase E1 done. Phase E2 done and live on testnet. Phase E3's `create_escrow`/`get_status`/`release`/`refund` wrapping done; SDK distribution decided (issue #5 closed — GitHub Release tarball, ADR 0003). Phase E4 (security review, issue #6) in progress: threat model drafted (`docs/threat-model.md`) and the timeout-refund item closed (issue #11 — ADR 0004 + implementation, live on testnet); independent review not yet done — blocking for any mainnet use. Phase E5 (contract features) now includes the OZ-library evaluation (ADR 0006, no library adopted) and the optional in-contract M-of-N releaser quorum (ADR 0007, SDK 0.5.0) — implemented, tested and pending a testnet redeploy. Phase E6 (npm publishing) in progress: automated `sdk-v*` release workflow with provenance, changesets, and a superseding ADR landed; the one-time human npm org/trusted-publishing setup is still pending, so `sdk-v0.3.0` is not yet on npm. Phase E7 (verification/release engineering) started: committed Soroban test snapshots with a CI drift check (issue #120) and a CI check that generated SDK bindings match the contract WASM (issue #121).**
+**Status: Phase E1 done. Phase E2 done and live on testnet. Phase E3's `create_escrow`/`get_status`/`release`/`refund` wrapping done; SDK distribution decided (issue #5 closed — GitHub Release tarball, ADR 0003). Phase E4 (security review, issue #6) in progress: threat model drafted (`docs/threat-model.md`) and the timeout-refund item closed (issue #11 — ADR 0004 + implementation, live on testnet); independent review not yet done — blocking for any mainnet use. Phase E5 (bound condition_ref length) started — see below; redeployed to testnet on 2026-10-20.**
+**Status: Phase E1 done. Phase E2 done and live on testnet. Phase E3's `create_escrow`/`get_status`/`release`/`refund` wrapping done; SDK distribution decided (issue #5 closed — GitHub Release tarball, ADR 0003). Phase E4 (security review, issue #6) in progress: threat model drafted (`docs/threat-model.md`) and the timeout-refund item closed (issue #11 — ADR 0004 + implementation, live on testnet); independent review not yet done — blocking for any mainnet use. Phase E5 (contract features) now includes the OZ-library evaluation (ADR 0006, no library adopted) and the optional in-contract M-of-N releaser quorum (ADR 0007, SDK 0.5.0) — implemented, tested, and deployed to testnet on 2026-10-20. Phase E6 (npm publishing) in progress: automated `sdk-v*` release workflow with provenance, changesets, and a superseding ADR landed; the current SDK 0.5.0 tarball and notification to docforum-core #32 are still pending authenticated release access. Phase E7 (verification/release engineering) started: committed Soroban test snapshots with a CI drift check (issue #120) and a CI check that generated SDK bindings match the contract WASM (issue #121).**
 
 ## Phase E1 — Contract skeleton
 - [x] Soroban project scaffold (`contracts/escrow`), builds to wasm
@@ -112,8 +112,9 @@
   Soroban rejects re-entry as an unrecoverable context error ("Contract
   re-entry is not allowed"), aborting the whole invocation — fail-closed.
   Post-creation clawback remains possible by design and is documented in
-  T5 as accepted residual risk. **Not yet on testnet** — the current
-  deployment predates it. Closes issue #12.
+  T5 as accepted residual risk. Deployed to testnet and verified with a
+  real fee-on-transfer token rejection on 2026-10-20; see
+  `docs/testnet-deployments.md`. Closes issue #12.
 - [ ] Rest of the `docs/threat-model.md` §6 pre-mainnet checklist, scoped
   into issues: [#8](https://github.com/DocForum/docforum-escrow/issues/8) write status before transfer + reject
   contract-self addresses (Trivial), [#9](https://github.com/DocForum/docforum-escrow/issues/9) events (Medium),
@@ -135,8 +136,10 @@
   and update `README.md` + `ARCHITECTURE_ESSENTIALS.md` to surface the
   new contract/SDK surface. Contract tests added in
   `contracts/escrow/tests/create_escrow.rs` (hard rule 2).
-- [ ] Redeploy to testnet with the new error code and verify live.
-  (Breaking contract change — needs a new deployment + tarball per ADR 0003.)
+- [x] Redeployed current main to testnet on 2026-10-20 and verified live:
+  create, release, refund, timeout refund, and BalanceMismatch rejection;
+  see `docs/testnet-deployments.md`. This also deploys the current
+  checks-effects-interactions, quorum, allowlist, and callback surfaces.
 ## Phase E5 — Contract features
 - [x] **OpenZeppelin Stellar library evaluation** (issue #118) —
   `docs/adr/0006`: all six candidate modules checked against ADR 0001/0002
@@ -150,7 +153,7 @@
   `settle()` — status written before the outbound transfer, with a
   rollback test (`tests/malicious_token.rs::failed_payout_leaves_the_escrow_funded`).
   Library pinning/update policy and the wasm/instruction-cost comparison
-  recorded in the ADR. **Not yet on testnet.**
+  recorded in the ADR. Deployed on testnet on 2026-10-20.
 - [x] **In-contract M-of-N releaser quorum** (issue #119) —
   `docs/adr/0007`: optional `create_escrow_with_releasers(releasers,
   threshold)` (1–10 addresses, threshold 1..=len, no duplicates) plus
@@ -163,21 +166,22 @@
   return `ThresholdNotMet`. Timeout refunds stay open to anyone. New
   append-only errors 13–17. 19 tests in `tests/quorum.rs`; single-releaser
   suites unchanged and green. Breaking read shape → SDK 0.5.0, bindings
-  regenerated. **Not yet on testnet** — the live deployment predates it.
+  regenerated. Deployed on 2026-10-20; live record in
+  `docs/testnet-deployments.md`.
 - [x] Immutable deploy-time token allowlist (issue #36):
   `__constructor(allowed_tokens)` stores approved addresses;
   `create_escrow` rejects unlisted tokens with append-only error code 7.
   An empty list preserves allow-all behavior. Tests cover listed,
   unlisted, and empty-list cases. Threat model, deployment guidance, and
-  contract API docs updated. **Not yet on testnet** — the current
-  deployment predates this constructor; a new testnet deployment and
-  verification are required before claiming the live contract is
-  protected. Closes issue #36.
+  contract API docs updated. Deployed on testnet on 2026-10-20; the
+  allowlist contains the native XLM SAC and verification test token.
+  Closes issue #36.
 - [x] Optional release callback (issue #53): both single-releaser and
   quorum creation require payee authorization when `notify_payee` is true;
   release calls `on_escrow_released` after transfer and rolls back atomically
   on failure. Re-entry tests cover release/refund/create attempts. ADR 0005
-  and threat-model T11 document the decision. Not deployed to testnet.
+  and threat-model T11 document the decision. Deployed on testnet on
+  2026-10-20.
 ## Phase E6 — SDK & integrator tooling
 - [x] Automated npm release workflow (`.github/workflows/release-sdk.yml`),
   triggered by an `sdk-v*` tag: builds, typechecks, tests, runs
@@ -191,9 +195,11 @@
   `version`/`release` scripts and `publishConfig` with provenance.
 - [x] Superseding ADR written: `docs/adr/0005` supersedes ADR 0003's
   interim tarball-only decision now that npm publishing is going live.
-- [ ] One-time human steps (npm org creation, trusted-publisher setup for
-  the release workflow) — documented in `CONTRIBUTING.md`; not yet done,
-  so `sdk-v0.3.0` is not yet published to npm.
+- [ ] Publish the current SDK tarball as `sdk-v0.5.0` and notify
+  `docforum-core` issue #32. The requested `sdk-v0.3.x` is stale: current
+  main is strict-semver `0.5.0`, and `0.3.0` must not be reused.
+  Publication requires authenticated release access and npm trusted
+  publisher setup; neither was available for this local contribution.
 
 ## Phase E7 — Verification, testing & release engineering
 - [x] **PR malware scan** — `.github/workflows/pr-malware-scan.yml` + `.github/scripts/pr-malware-scan.cjs`, on every PR push. Flags editor/devcontainer autorun tasks, npm install hooks, typosquatted packages and Actions, non-registry dependency sources, payloads disguised as fonts/images, base64/whitespace obfuscation, exfiltration endpoints, reverse shells and miners. HIGH findings fail the `Malware scan` check, label the PR `security-review` and @mention the author; one comment per PR, updated in place. Reads the PR as data only (never checks out or runs it). Added 2026-10-20 after a VS Code autorun payload (escrow #163) and a typosquatted action (escrow #176). Manual backfill (Actions → PR malware scan → Run workflow, `prs: all`) scans PRs opened before the scanner and records a `Malware scan` commit status, which satisfies the required check.
@@ -227,6 +233,13 @@
   repo's.
 
 ## Changelog
+- 2026-10-20 — Redeployed current main to Stellar testnet and verified
+  create, release, refund, timeout refund, and a real `BalanceMismatch`
+  rejection with a fee-on-transfer test token. Recorded contract and
+  transaction links in `docs/testnet-deployments.md`; updated the SDK
+  integration test's known testnet contract ID. SDK release publication
+  and notification to `docforum-core` #32 remain pending authenticated
+  release access; current SDK version is 0.5.0, not the requested stale 0.3.x.
 - 2026-10-19 — Required payee authorization when `notify_payee` is enabled,
   and extended the callback to quorum escrows after #203 introduced M-of-N
   releasers. Updated ADR 0005, T11, API docs and generated bindings.
@@ -247,7 +260,8 @@
   escrows store 1-of-1 and keep using `release`/`refund`). 19 new tests;
   57 contract tests green. SDK 0.4.0 → **0.5.0** (breaking read shape), with
   `createQuorumEscrow`/`releaseWithApprovals`/`refundWithApprovals`,
-  offline validation tests, and regenerated bindings. **Not yet on testnet.**
+  offline validation tests, and regenerated bindings. Deployed on testnet on
+  2026-10-20.
   **#120:** committed `test_snapshots/` for every test (57 files) and a CI
   drift check; documented how to update them intentionally and the
   last-invocation-only event-capture caveat.
